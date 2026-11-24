@@ -1,3 +1,7 @@
+[![make.fun · token-radar-01](https://make.fun/badge/token-radar-01.svg)](https://make.fun/bounty/token-radar-01?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
+[![rank](https://make.fun/badge/token-radar-01/BangDills/token-radar-v3-20261124/rank.svg)](https://make.fun/bounty/token-radar-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
+[![reward](https://make.fun/badge/token-radar-01/BangDills/token-radar-v3-20261124/reward.svg)](https://make.fun/bounty/token-radar-01?utm_source=github&utm_medium=readme&utm_campaign=token-radar-01)
+
 # Token Radar — fitted comps board for pre-token protocols
 
 A dark fintech terminal ranking 220 pre-token protocols by fitted implied value:
