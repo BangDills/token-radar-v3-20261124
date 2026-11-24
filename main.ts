@@ -5,10 +5,11 @@
 // copies this repository's dashboard/ and screenshots/ to /output. Last, it writes /output/dossier.json,
 // the summary the judge reads, with the vendored make.fun library.
 //
-// The dashboard is a static page, no framework and no network: dashboard/index.html, dashboard/app.css
-// and dashboard/app.js read /output/data.js, which this program writes from the same board. A starting
-// point, not a winner: it covers the watchlist, states the model and gives every protocol a farm plan.
-// Change the model, the page or the plan; keep the gate's shape.
+// The dashboard is a dark fintech terminal, no framework and no network: dashboard/index.html,
+// dashboard/app.css, dashboard/panels.js and dashboard/app.js read /output/data.js, which this program
+// writes from the same board. The model is fitted comps: category mcap/TVL multiples plus growth, size,
+// age and breadth moves fit from the snapshot's live-token protocols, with walk-forward and leave-one-out
+// validation and a conformal band. Change the model, the page or the plan; keep the gate's shape.
 //
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts --input ../input/snapshot.json
@@ -43,7 +44,7 @@ if (!existsSync(inputFile)) {
 const out = arg('output', process.env.MAKEFUN_OUTPUT_DIR ?? '/output');
 
 const snapshot = parseSnapshot(readFileSync(inputFile, 'utf8'));
-const { board, radar } = buildRadar(snapshot);
+const { board, radar, fit, validation } = buildRadar(snapshot);
 const issue = boardIssue(board, snapshot);
 if (issue !== null) {
   process.stderr.write(`token radar: the model wrote a board the gate refuses: ${issue}\n`);
@@ -69,7 +70,7 @@ function copyFiles(from: string, to: string): string[] {
   return copied;
 }
 
-copyFiles(join(here, 'dashboard'), join(out, 'dashboard'));
+const dash = copyFiles(join(here, 'dashboard'), join(out, 'dashboard'));
 const shots = copyFiles(join(here, 'screenshots'), join(out, 'screenshots'));
 if (shots.length < 3) {
   process.stderr.write(`token radar: screenshots/ holds ${shots.length} image${shots.length === 1 ? '' : 's'}: hand in 3, the board, a detail view and a filtered view\n`);
@@ -85,7 +86,36 @@ for (const name of shots) {
 // The dossier is written last: the scorer rebuilds it from this /output and compares bytes.
 writeFileSync(join(out, 'dossier.json'), buildDossier(out, { text_max_bytes: TEXT_MAX_BYTES, screenshots: SCREENSHOT_CAPS, dashboard: { max_files: 400, max_bytes: 4_194_304 } }));
 
+// --verify-determinism: rebuild the board and data.js in memory and refuse to finish when a byte
+// differs, so a nondeterministic fit can never ship inside an otherwise passing run.
+if (process.argv.includes('--verify-determinism')) {
+  const again = buildRadar(snapshot);
+  const boardAgain = `${JSON.stringify({ rows: again.board })}\n`;
+  const dataAgain = dataScript(again.radar);
+  const boardNow = `${JSON.stringify({ rows: board })}\n`;
+  const dataNow = dataScript(radar);
+  if (boardAgain !== boardNow || dataAgain !== dataNow) {
+    process.stderr.write('token radar: --verify-determinism: second build differs from the first\n');
+    process.exit(1);
+  }
+  process.stdout.write('token radar: --verify-determinism: second build is byte-identical\n');
+}
+
+const fitLine =
+  fit === null
+    ? `token radar: fit fell back to priors (under 10 live comps)\n`
+    : `token radar: fit on ${fit.comps_n} live comps: global median ${fit.global_median_ratio.toFixed(4)}, ` +
+      `slopes g=${fit.growth_slope.toFixed(5)} t=${fit.tvl_slope.toFixed(5)} a=${fit.age_slope.toFixed(6)} c=${fit.chain_slope.toFixed(5)}\n`;
+const valLine =
+  validation === null
+    ? `token radar: no held-out validation (under 10 live comps)\n`
+    : `token radar: LOO fitted ${validation.loo.fitted_male} vs naive ${validation.loo.naive_male} (n=${validation.loo.n}); ` +
+      `walk-forward fitted ${validation.walk_forward.fitted_male} vs naive ${validation.walk_forward.naive_male} (n=${validation.walk_forward.n}); ` +
+      `80pct band x${validation.conformal.lo_factor}/x${validation.conformal.hi_factor}\n`;
+
 process.stdout.write(
   `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.length} on the watchlist, ${board.length} rows scored (${radar.early_size} early, ${radar.live_size} live set aside)\n` +
-    `token radar: wrote ${join(out, 'board.json')}, ${join(out, 'data.js')}, ${join(out, 'dashboard')} (3 files), ${join(out, 'screenshots')} (${shots.length} images) and ${join(out, 'dossier.json')}\n`,
+    fitLine +
+    valLine +
+    `token radar: wrote ${join(out, 'board.json')}, ${join(out, 'data.js')}, ${join(out, 'dashboard')} (${dash.length} files), ${join(out, 'screenshots')} (${shots.length} images) and ${join(out, 'dossier.json')}\n`,
 );
